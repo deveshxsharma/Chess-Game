@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chess</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #0f0f12;
+            color: #ddd;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            flex-direction: column;
+        }
+        #board {
+            width: 480px;
+            height: 480px;
+            margin: 15px 0;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+            border: 8px solid #1f1f24;
+            border-radius: 6px;
+        }
+        .status {
+            font-size: 18px;
+            margin: 12px 0;
+            padding: 10px 24px;
+            background: #1f1f24;
+            border-radius: 9999px;
+            font-weight: 500;
+        }
+        button {
+            background: #2a2a31;
+            color: #ddd;
+            border: 1px solid #3a3a42;
+            padding: 10px 20px;
+            margin: 6px;
+            font-size: 15px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #3a3a42;
+            border-color: #4a90d9;
+        }
+        .watermark {
+            position: fixed;
+            bottom: 12px;
+            left: 16px;
+            font-size: 12px;
+            color: #555;
+            font-weight: 400;
+        }
+    </style>
+    
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+</head>
+<body>
+
+    <h1>Chess</h1>
+    <div class="status" id="status">Your turn • White</div>
+    <div id="board"></div>
+    
+    <div>
+        <button onclick="newGame()">New Game</button>
+        <button onclick="undoMove()">Undo</button>
+    </div>
+
+    <div class="watermark">By Devesh Sharma</div>
+
+    <script>
+        let game = new Chess();
+        let board = null;
+        let isAIThinking = false;
+
+        // ==================== IMPROVED AI ====================
+        const pst = {
+            p: [   0,  0,  0,  0,  0,  0,  0,  0,
+                  50, 50, 50, 50, 50, 50, 50, 50,
+                  10, 10, 20, 30, 30, 20, 10, 10,
+                   5,  5, 10, 25, 25, 10,  5,  5,
+                   0,  0,  0, 20, 20,  0,  0,  0,
+                   5, -5,-10,  0,  0,-10, -5,  5,
+                   5, 10, 10,-20,-20, 10, 10,  5,
+                   0,  0,  0,  0,  0,  0,  0,  0 ],
+            n: [ -50,-40,-30,-30,-30,-30,-40,-50,
+                 -40,-20,  0,  0,  0,  0,-20,-40,
+                 -30,  0, 10, 15, 15, 10,  0,-30,
+                 -30,  5, 15, 20, 20, 15,  5,-30,
+                 -30,  0, 15, 20, 20, 15,  0,-30,
+                 -30,  5, 10, 15, 15, 10,  5,-30,
+                 -40,-20,  0,  5,  5,  0,-20,-40,
+                 -50,-40,-30,-30,-30,-30,-40,-50 ],
+            b: [ -20,-10,-10,-10,-10,-10,-10,-20,
+                 -10,  0,  0,  0,  0,  0,  0,-10,
+                 -10,  0,  5, 10, 10,  5,  0,-10,
+                 -10,  5,  5, 10, 10,  5,  5,-10,
+                 -10,  0, 10, 10, 10, 10,  0,-10,
+                 -10, 10, 10, 10, 10, 10, 10,-10,
+                 -10,  5,  0,  0,  0,  0,  5,-10,
+                 -20,-10,-10,-10,-10,-10,-10,-20 ],
+            r: [   0,  0,  0,  0,  0,  0,  0,  0,
+                  -5,  0,  0,  0,  0,  0,  0, -5,
+                  -5,  0,  0,  0,  0,  0,  0, -5,
+                  -5,  0,  0,  0,  0,  0,  0, -5,
+                  -5,  0,  0,  0,  0,  0,  0, -5,
+                  -5,  0,  0,  0,  0,  0,  0, -5,
+                   5, 10, 10, 10, 10, 10, 10,  5,
+                   0,  0,  0,  0,  0,  0,  0,  0 ],
+            q: [ -20,-10,-10, -5, -5,-10,-10,-20,
+                 -10,  0,  0,  0,  0,  0,  0,-10,
+                 -10,  0,  5,  5,  5,  5,  0,-10,
+                  -5,  0,  5,  5,  5,  5,  0, -5,
+                   0,  0,  5,  5,  5,  5,  0, -5,
+                 -10,  5,  5,  5,  5,  5,  0,-10,
+                 -10,  0,  5,  0,  0,  0,  0,-10,
+                 -20,-10,-10, -5, -5,-10,-10,-20 ],
+            k: [ -30,-40,-40,-50,-50,-40,-40,-30,
+                 -30,-40,-40,-50,-50,-40,-40,-30,
+                 -30,-40,-40,-50,-50,-40,-40,-30,
+                 -30,-40,-40,-50,-50,-40,-40,-30,
+                 -20,-30,-30,-40,-40,-30,-30,-20,
+                 -15,-20,-20,-20,-20,-20,-20,-15,
+                  20, 20,  0,  0,  0,  0, 20, 20,
+                  20, 30, 10,  0,  0, 10, 30, 20 ]
+        };
+
+        function evaluateBoard(game) {
+            if (game.in_checkmate()) return game.turn() === 'w' ? -99999 : 99999;
+            if (game.in_draw()) return 0;
+
+            let score = 0;
+            const pieceValues = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+            const boardState = game.board();
+
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 8; j++) {
+                    const piece = boardState[i][j];
+                    if (!piece) continue;
+
+                    const val = pieceValues[piece.type];
+                    let pstVal = 0;
+
+                    if (pst[piece.type]) {
+                        const idx = piece.color === 'w' ? i * 8 + j : (7 - i) * 8 + j;
+                        pstVal = pst[piece.type][idx];
+                    }
+
+                    if (piece.color === 'w') {
+                        score += val + pstVal;
+                    } else {
+                        score -= val + pstVal;
+                    }
+                }
+            }
+            return score;
+        }
+
+        function getBestMove() {
+            let bestMove = null;
+            let bestValue = -Infinity;
+
+            for (let move of game.moves()) {
+                game.move(move);
+                let value = evaluateBoard(game);
+                game.undo();
+                if (value > bestValue) {
+                    bestValue = value;
+                    bestMove = move;
+                }
+            }
+            return bestMove;
+        }
+
+        function makeAIMove() {
+            if (game.game_over() || game.turn() === 'w' || isAIThinking) return;
+            isAIThinking = true;
+
+            setTimeout(() => {
+                const bestMove = getBestMove();
+                if (bestMove) {
+                    game.move(bestMove);
+                    board.position(game.fen());
+                    updateStatus();
+                }
+                isAIThinking = false;
+            }, 40);
+        }
+        // ==================== END OF AI ====================
+
+        function updateStatus() {
+            let status = '';
+            if (game.in_checkmate()) {
+                status = game.turn() === 'w' ? "Checkmate • Black wins" : "Checkmate • White wins";
+            } else if (game.in_draw()) {
+                status = "Draw";
+            } else {
+                status = game.turn() === 'w' ? "Your turn • White" : "Computer thinking...";
+                if (game.in_check()) status += " • Check";
+            }
+            document.getElementById('status').innerText = status;
+        }
+
+        function onDrop(source, target) {
+            if (isAIThinking) return 'snapback';
+
+            const move = game.move({
+                from: source,
+                to: target,
+                promotion: 'q'
+            });
+
+            if (move === null) return 'snapback';
+
+            board.position(game.fen(), false);
+            updateStatus();
+
+            if (!game.game_over()) {
+                makeAIMove();
+            }
+        }
+
+        function onSnapEnd() {
+            board.position(game.fen());
+        }
+
+        function initBoard() {
+            const config = {
+                draggable: true,
+                position: 'start',
+                onDrop: onDrop,
+                onSnapEnd: onSnapEnd,
+                pieceTheme: 'https://chessboardjs.com/img/chesspieces/alpha/{piece}.png',
+                appearSpeed: 200,
+                moveSpeed: 200,
+                snapbackSpeed: 100,
+                snapSpeed: 100
+            };
+
+            board = Chessboard('board', config);
+
+            const style = document.createElement('style');
+            style.innerHTML = `
+                .white-1e1d7 { background-color: #e8f0f8 !important; }
+                .black-3c85d { background-color: #4a90d9 !important; }
+            `;
+            document.head.appendChild(style);
+
+            updateStatus();
+        }
+
+        function newGame() {
+            game = new Chess();
+            board.position('start');
+            document.getElementById('status').innerText = "Your turn • White";
+            isAIThinking = false;
+        }
+
+        function undoMove() {
+            if (isAIThinking) return;
+            game.undo();
+            if (game.turn() === 'b') game.undo();
+            board.position(game.fen());
+            updateStatus();
+        }
+
+        window.onload = function() {
+            initBoard();
+        };
+    </script>
+</body>
+</html>
